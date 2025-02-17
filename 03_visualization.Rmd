@@ -21,6 +21,15 @@ if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
 ```{r Data}
 # Dataset created from script "01_data_methods"
 clean_data <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2025_02_17.csv")
+
+# Tables created from script "02_analysis"
+depr_variance <- read.csv("02_Output/BDI_variance_2025-02-17.csv")
+view(depr_variance)
+depr_variance <- depr_variance %>% slice(1:(n() - 4))
+
+hope_variance <- read.csv("02_Output/BHS_variance_2025-02-17.csv")
+view(hope_variance)
+hope_variance <- hope_variance %>% slice(1:(n() - 4))
 ```
 
 ```{r vis variables}
@@ -163,8 +172,8 @@ for (i in seq_along(participant_ids)) {
   show_legend <- (i == 6)  
   
   p <- ggplot(scaled_data, aes(x = month)) +
-    geom_line(aes(y = bdi, color = "BDI"), size = 2.1) +
-    geom_point(aes(y = bdi, color = "BDI"), size = 3) +
+    geom_line(aes(y = bdi, color = "BDI-II"), size = 2.1) +
+    geom_point(aes(y = bdi, color = "BDI-II"), size = 3) +
     geom_line(aes(y = bhs, color = "BHS"), size = 2.1) +
     geom_point(aes(y = bhs, color = "BHS"), size = 3) +
     labs(title = paste("Participant", participant_id),  
@@ -172,7 +181,7 @@ for (i in seq_along(participant_ids)) {
          y = "Values",
          color = "Measure") +
     scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
-    scale_color_manual(values = c("BDI" = "#CC0066", "BHS" = "#009999")) +  
+    scale_color_manual(values = c("BDI-II" = "#CC0066", "BHS" = "#009999")) +  
     theme_minimal() + 
     theme(
       axis.title.x = element_text(size = 20),   
@@ -193,3 +202,28 @@ grid.arrange(grobs = plots_list_combined, ncol = 6)
 dev.off()
 ```
 
+# BDI + BHS variance partitions
+```{r gen variance vis}
+depr_variance <- depr_variance %>% slice(1:(n() - 1)) %>% mutate(Type = "BDI-II")
+hope_variance <- hope_variance %>% slice(1:(n() - 1)) %>% mutate(Type = "BHS")
+combined_variance <- bind_rows(depr_variance, hope_variance)
+
+combined_variance <- combined_variance %>%
+  mutate(X = factor(X, levels = rev(unique(X))))
+
+(variances <- ggplot(combined_variance, aes(x = X, y = variance, fill = Type)) +
+    geom_col(position = "dodge", width = 0.6, alpha = 0.8) +
+    coord_flip() +
+    facet_wrap(~ Type) +  
+    scale_fill_manual(values = c("BDI-II" = "#CC0066", "BHS" = "#009999")) +
+    labs(title = "Variance partitions for the BDI-II & BHS",
+        x = "Partition",
+        y = "Variance",
+        fill = "Measure") +
+    theme_minimal() +
+    guides(fill = "none"))  
+
+pdf("03_Output/BDI_BHS_variance_partitions.pdf", width = 5, height = 5)
+variances
+dev.off()
+```
