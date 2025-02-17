@@ -1,0 +1,195 @@
+---
+title: "03_visualization"
+author: "Sglatt"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Packages}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("ggstatsplot")) {install.packages("ggstatsplot"); require("ggstatsplot")}
+if (!require("gridExtra")) {install.packages("gridExtra"); require("gridExtra")}
+if (!require("psych")) {install.packages("psych"); require("psych")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+```
+
+```{r Data}
+# Dataset created from script "01_data_methods"
+clean_data <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2025_02_17.csv")
+```
+
+```{r vis variables}
+pmean <- function(ID,var){
+  centered <- ave(var, ID, FUN = function(x) mean(x, na.rm = TRUE))
+  return(centered)
+}
+
+clean_data$bdi_pmeans <- pmean(clean_data$id, clean_data$bdi)
+clean_data$bhs_pmeans <- pmean(clean_data$id, clean_data$bhs)
+```
+
+# BDI person-level plots combined
+```{r BDI vis/ID}
+participant_dataframes <- list()
+plots_list_bdi <- list()
+
+for (id_val in unique(clean_data$id)) {
+  
+  participant_id <- gsub("^(PH-)", "2-", as.character(id_val))
+  participant_id <- gsub("^(BX-)", "1-", participant_id)
+  participant_id <- gsub("^(TX-)", "3-", participant_id)
+  participant_id <- gsub("^(NP-)", "4-", participant_id)
+  
+  ID_data_subset <- subset(clean_data, id == id_val)
+  
+  scaled_data <- ID_data_subset %>%
+    dplyr::select(month, id, bdi_pmeans, bdi) %>%
+    dplyr::mutate(across(c(bdi), scale))
+  
+  scaled_data$bdi_pmeans_SCALED <- mean(scaled_data$bdi)
+  
+  participant_dataframes[[paste0("participant_", id_val, "_data")]] <- scaled_data
+  
+  p <- ggplot(scaled_data, aes(x = month)) +
+    geom_line(aes(y = bdi_pmeans_SCALED), color = "black", linetype = "dashed", 
+              size = 1.5) +  
+    geom_line(aes(y = bdi), color = "black", size = 2.1) +
+    geom_point(aes(y = bdi), color = "black", size = 3) +  
+    labs(title = paste("Participant", participant_id),  
+         x = "Wave",
+         y = "Values") +
+    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
+    theme_minimal() + 
+    theme(
+      axis.title.x = element_text(size = 20),   
+      axis.title.y = element_text(size = 20),   
+      axis.text.x = element_text(size = 20),    
+      axis.text.y = element_text(size = 20),    
+      plot.title = element_text(size = 23, face = "bold", hjust = 0.5), 
+      legend.text = element_text(size = 20),    
+      legend.title = element_text(size = 20)    
+    )
+  
+  plots_list_bdi[[paste0("participant_", id_val)]] <- p
+}
+
+
+pdf("03_Output/BDI_individual_trajectories.pdf", width = 32, height = 45)
+grid.arrange(grobs = plots_list_bdi, ncol = 6)  
+dev.off()
+```
+
+# BHS person-level plots combined
+```{r BHS vis/ID}
+participant_dataframes <- list()
+plots_list_bhs <- list()
+
+for (id_val in unique(clean_data$id)) {
+  
+  participant_id <- gsub("^(PH-)", "2-", as.character(id_val))
+  participant_id <- gsub("^(BX-)", "1-", participant_id)
+  participant_id <- gsub("^(TX-)", "3-", participant_id)
+  participant_id <- gsub("^(NP-)", "4-", participant_id)
+  
+  ID_data_subset <- subset(clean_data, id == id_val)
+  
+  scaled_data <- ID_data_subset %>%
+    dplyr::select(month, id, bhs_pmeans, bhs) %>%
+    dplyr::mutate(across(c(bhs), scale))
+  
+  scaled_data$bhs_pmeans_SCALED <- mean(scaled_data$bhs)
+  
+  participant_dataframes[[paste0("participant_", id_val, "_data")]] <- scaled_data
+  
+  p <- ggplot(scaled_data, aes(x = month)) +
+    geom_line(aes(y = bhs_pmeans_SCALED), color = "black", linetype = "dashed", 
+              size = 1.5) +  
+    geom_line(aes(y = bhs), color = "black", size = 2.1) +
+    geom_point(aes(y = bhs), color = "black", size = 3) +  
+    labs(title = paste("Participant", participant_id),  
+         x = "Wave",
+         y = "Values") +
+    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
+    theme_minimal() + 
+    theme(
+      axis.title.x = element_text(size = 20),   
+      axis.title.y = element_text(size = 20),   
+      axis.text.x = element_text(size = 20),    
+      axis.text.y = element_text(size = 20),    
+      plot.title = element_text(size = 23, face = "bold", hjust = 0.5), 
+      legend.text = element_text(size = 20),    
+      legend.title = element_text(size = 20)    
+    )
+  
+  plots_list_bhs[[paste0("participant_", id_val)]] <- p
+}
+
+
+pdf("03_Output/BHS_individual_trajectories.pdf", width = 32, height = 45)
+grid.arrange(grobs = plots_list_bhs, ncol = 6)  
+dev.off()
+```
+
+# BDI + BHS person-level plots combined
+```{r BHS and BDI vis/ID}
+participant_dataframes <- list()
+plots_list_combined <- list()
+
+participant_ids <- unique(clean_data$id)
+num_rows <- ceiling(length(participant_ids) / 6)  
+# this is a long labeled way of getting the color key to only appear on one image...
+
+for (i in seq_along(participant_ids)) {
+  id_val <- participant_ids[i]
+  
+  participant_id <- gsub("^(PH-)", "2-", as.character(id_val))
+  participant_id <- gsub("^(BX-)", "1-", participant_id)
+  participant_id <- gsub("^(TX-)", "3-", participant_id)
+  participant_id <- gsub("^(NP-)", "4-", participant_id)
+  
+  ID_data_subset <- subset(clean_data, id == id_val)
+  
+  scaled_data <- ID_data_subset %>%
+    dplyr::select(month, id, bdi, bhs) %>%
+    dplyr::mutate(across(c(bdi, bhs), scale))  # Scale both variables
+  
+  participant_dataframes[[paste0("participant_", id_val, "_data")]] <- scaled_data
+  
+  show_legend <- (i == 6)  
+  
+  p <- ggplot(scaled_data, aes(x = month)) +
+    geom_line(aes(y = bdi, color = "BDI"), size = 2.1) +
+    geom_point(aes(y = bdi, color = "BDI"), size = 3) +
+    geom_line(aes(y = bhs, color = "BHS"), size = 2.1) +
+    geom_point(aes(y = bhs, color = "BHS"), size = 3) +
+    labs(title = paste("Participant", participant_id),  
+         x = "Wave",
+         y = "Values",
+         color = "Measure") +
+    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
+    scale_color_manual(values = c("BDI" = "#CC0066", "BHS" = "#009999")) +  
+    theme_minimal() + 
+    theme(
+      axis.title.x = element_text(size = 20),   
+      axis.title.y = element_text(size = 20),   
+      axis.text.x = element_text(size = 20),    
+      axis.text.y = element_text(size = 20),    
+      plot.title = element_text(size = 23, face = "bold", hjust = 0.5), 
+      legend.text = element_text(size = 20),    
+      legend.title = element_text(size = 20),
+      legend.position = ifelse(show_legend, "right", "none")  
+    )
+  
+  plots_list_combined[[paste0("participant_", id_val)]] <- p
+}
+
+pdf("03_Output/BDI_BHS_combined_trajectories.pdf", width = 32, height = 45)
+grid.arrange(grobs = plots_list_combined, ncol = 6)  
+dev.off()
+```
+
