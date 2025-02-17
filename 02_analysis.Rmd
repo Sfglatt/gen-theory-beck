@@ -1,0 +1,102 @@
+---
+title: "02_analysis"
+author: "Sglatt"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Packages}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("jmv")) {install.packages("jmv"); require("jmv")}
+if (!require("lme4")) {install.packages("lme4"); require("lme4")}
+if (!require("moments")) {install.packages("moments"); require("moments")}
+if (!require("naniar")) {install.packages("naniar"); require("naniar")}
+if (!require("psych")) {install.packages("psych"); require("psych")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+```
+
+```{r Data}
+# All datasets created from script "01_data_methods"
+clean_data <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2025_02_17.csv")
+hope_long <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BHS_long_2025_02_17.csv")
+depr_long <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BDI_long_2025_02_17.csv")
+```
+
+```{r overakk change}
+# t tests between baseline -- 12 month follow-up; shift to wide format
+plf_wide <- clean_data %>%
+  dplyr::select(id, month, bdi, bhs) %>%
+  pivot_wider(
+    names_from = month, 
+    values_from = c(bdi, bhs),
+    names_glue = "{.value}_{month}",
+    values_fill = list(bdi = NA, bhs = NA)  
+  )
+
+jmv::ttestPS(
+    data = plf_wide,
+    pairs = list(
+        list(
+            i1="bhs_0",
+            i2="bhs_12"), 
+        list(
+            i1="bdi_0",
+            i2="bdi_12")),
+    wilcoxon = TRUE,
+    norm = TRUE,
+    meanDiff = TRUE,
+    ci = TRUE,
+    effectSize = TRUE,
+    ciES = TRUE,
+    desc = TRUE)
+```
+
+```{r Variance decomposition}
+# variance decomposition and reliability of ind. *change*
+hope_reliable <- psych::multilevel.reliability(hope_long, 
+                                               grp = "id",  
+                                               Time = "time", 
+                                               items = "items",
+                                               alpha = TRUE,
+                                               icc = TRUE,
+                                               aov = FALSE,
+                                               lmer = TRUE,
+                                               lme = TRUE,
+                                               long = TRUE,
+                                               values = "values",
+                                               na.action = "na.omit",
+                                               plot = FALSE)  
+hope_reliable
+hope_reliable$s.lme
+hope_reliable$s.lmer
+
+depr_reliable <- psych::multilevel.reliability(depr_long, 
+                                               grp = "id",  
+                                               Time = "time", 
+                                               items = "items",
+                                               alpha = TRUE,
+                                               icc = TRUE,
+                                               aov = FALSE,
+                                               lmer = TRUE,
+                                               lme = TRUE,
+                                               long = TRUE,
+                                               values = "values",
+                                               na.action = "na.omit",
+                                               plot = FALSE)  
+
+# str(depr_reliable)
+depr_reliable
+depr_reliable$s.lme
+depr_reliable$s.lmer
+
+# Save tables
+depr_variance <- depr_reliable$components
+write.csv(depr_variance, paste0("02_Output/BDI_variance_", format(Sys.Date(), "%Y-%m-%d"), ".csv"), row.names = TRUE)
+
+hope_variance <- hope_reliable$components
+write.csv(hope_variance, paste0("02_Output/BHS_variance_", format(Sys.Date(), "%Y-%m-%d"), ".csv"), row.names = TRUE)
+```
