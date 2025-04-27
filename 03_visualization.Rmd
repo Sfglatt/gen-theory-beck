@@ -10,12 +10,34 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r Packages}
-if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
-if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
-if (!require("ggstatsplot")) {install.packages("ggstatsplot"); require("ggstatsplot")}
-if (!require("gridExtra")) {install.packages("gridExtra"); require("gridExtra")}
-if (!require("psych")) {install.packages("psych"); require("psych")}
-if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("dplyr")) {
+  install.packages("dplyr")
+  require("dplyr")
+}
+if (!require("ggplot2")) {
+  install.packages("ggplot2")
+  require("ggplot2")
+}
+if (!require("ggstatsplot")) {
+  install.packages("ggstatsplot")
+  require("ggstatsplot")
+}
+if (!require("gridExtra")) {
+  install.packages("gridExtra")
+  require("gridExtra")
+}
+if (!require("patchwork")) {
+  install.packages("patchwork")
+  require("patchwork")
+}
+if (!require("psych")) {
+  install.packages("psych")
+  require("psych")
+}
+if (!require("tidyverse")) {
+  install.packages("tidyverse")
+  require("tidyverse")
+}
 ```
 
 ```{r Data}
@@ -23,17 +45,15 @@ if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
 clean_data <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2025_02_17.csv")
 
 # Tables created from script "02_analysis"
-depr_variance <- read.csv("02_Output/BDI_variance_2025-02-17.csv")
+depr_variance <- read.csv("02_Output/BDI_variance_2025-04-01.csv")
 view(depr_variance)
-depr_variance <- depr_variance %>% slice(1:(n() - 4))
 
-hope_variance <- read.csv("02_Output/BHS_variance_2025-02-17.csv")
+hope_variance <- read.csv("02_Output/BHS_variance_2025-04-01.csv")
 view(hope_variance)
-hope_variance <- hope_variance %>% slice(1:(n() - 4))
 ```
 
 ```{r vis variables}
-pmean <- function(ID,var){
+pmean <- function(ID, var) {
   centered <- ave(var, ID, FUN = function(x) mean(x, na.rm = TRUE))
   return(centered)
 }
@@ -48,48 +68,51 @@ participant_dataframes <- list()
 plots_list_bdi <- list()
 
 for (id_val in unique(clean_data$id)) {
-  
   participant_id <- gsub("^(PH-)", "2-", as.character(id_val))
   participant_id <- gsub("^(BX-)", "1-", participant_id)
   participant_id <- gsub("^(TX-)", "3-", participant_id)
   participant_id <- gsub("^(NP-)", "4-", participant_id)
-  
+
   ID_data_subset <- subset(clean_data, id == id_val)
-  
+
   scaled_data <- ID_data_subset %>%
     dplyr::select(month, id, bdi_pmeans, bdi) %>%
     dplyr::mutate(across(c(bdi), scale))
-  
+
   scaled_data$bdi_pmeans_SCALED <- mean(scaled_data$bdi)
-  
+
   participant_dataframes[[paste0("participant_", id_val, "_data")]] <- scaled_data
-  
+
   p <- ggplot(scaled_data, aes(x = month)) +
-    geom_line(aes(y = bdi_pmeans_SCALED), color = "black", linetype = "dashed", 
-              size = 1.5) +  
+    geom_line(aes(y = bdi_pmeans_SCALED),
+      color = "black", linetype = "dashed",
+      size = 1.5
+    ) +
     geom_line(aes(y = bdi), color = "black", size = 2.1) +
-    geom_point(aes(y = bdi), color = "black", size = 3) +  
-    labs(title = paste("Participant", participant_id),  
-         x = "Wave",
-         y = "Values") +
-    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
-    theme_minimal() + 
+    geom_point(aes(y = bdi), color = "black", size = 3) +
+    labs(
+      title = paste("Participant", participant_id),
+      x = "Wave",
+      y = "Values"
+    ) +
+    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +
+    theme_minimal() +
     theme(
-      axis.title.x = element_text(size = 20),   
-      axis.title.y = element_text(size = 20),   
-      axis.text.x = element_text(size = 20),    
-      axis.text.y = element_text(size = 20),    
-      plot.title = element_text(size = 23, face = "bold", hjust = 0.5), 
-      legend.text = element_text(size = 20),    
-      legend.title = element_text(size = 20)    
+      axis.title.x = element_text(size = 20),
+      axis.title.y = element_text(size = 20),
+      axis.text.x = element_text(size = 20),
+      axis.text.y = element_text(size = 20),
+      plot.title = element_text(size = 23, face = "bold", hjust = 0.5),
+      legend.text = element_text(size = 20),
+      legend.title = element_text(size = 20)
     )
-  
+
   plots_list_bdi[[paste0("participant_", id_val)]] <- p
 }
 
 
 pdf("03_Output/BDI_individual_trajectories.pdf", width = 32, height = 45)
-grid.arrange(grobs = plots_list_bdi, ncol = 6)  
+grid.arrange(grobs = plots_list_bdi, ncol = 6)
 dev.off()
 ```
 
@@ -99,48 +122,51 @@ participant_dataframes <- list()
 plots_list_bhs <- list()
 
 for (id_val in unique(clean_data$id)) {
-  
   participant_id <- gsub("^(PH-)", "2-", as.character(id_val))
   participant_id <- gsub("^(BX-)", "1-", participant_id)
   participant_id <- gsub("^(TX-)", "3-", participant_id)
   participant_id <- gsub("^(NP-)", "4-", participant_id)
-  
+
   ID_data_subset <- subset(clean_data, id == id_val)
-  
+
   scaled_data <- ID_data_subset %>%
     dplyr::select(month, id, bhs_pmeans, bhs) %>%
     dplyr::mutate(across(c(bhs), scale))
-  
+
   scaled_data$bhs_pmeans_SCALED <- mean(scaled_data$bhs)
-  
+
   participant_dataframes[[paste0("participant_", id_val, "_data")]] <- scaled_data
-  
+
   p <- ggplot(scaled_data, aes(x = month)) +
-    geom_line(aes(y = bhs_pmeans_SCALED), color = "black", linetype = "dashed", 
-              size = 1.5) +  
+    geom_line(aes(y = bhs_pmeans_SCALED),
+      color = "black", linetype = "dashed",
+      size = 1.5
+    ) +
     geom_line(aes(y = bhs), color = "black", size = 2.1) +
-    geom_point(aes(y = bhs), color = "black", size = 3) +  
-    labs(title = paste("Participant", participant_id),  
-         x = "Wave",
-         y = "Values") +
-    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
-    theme_minimal() + 
+    geom_point(aes(y = bhs), color = "black", size = 3) +
+    labs(
+      title = paste("Participant", participant_id),
+      x = "Wave",
+      y = "Values"
+    ) +
+    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +
+    theme_minimal() +
     theme(
-      axis.title.x = element_text(size = 20),   
-      axis.title.y = element_text(size = 20),   
-      axis.text.x = element_text(size = 20),    
-      axis.text.y = element_text(size = 20),    
-      plot.title = element_text(size = 23, face = "bold", hjust = 0.5), 
-      legend.text = element_text(size = 20),    
-      legend.title = element_text(size = 20)    
+      axis.title.x = element_text(size = 20),
+      axis.title.y = element_text(size = 20),
+      axis.text.x = element_text(size = 20),
+      axis.text.y = element_text(size = 20),
+      plot.title = element_text(size = 23, face = "bold", hjust = 0.5),
+      legend.text = element_text(size = 20),
+      legend.title = element_text(size = 20)
     )
-  
+
   plots_list_bhs[[paste0("participant_", id_val)]] <- p
 }
 
 
 pdf("03_Output/BHS_individual_trajectories.pdf", width = 32, height = 45)
-grid.arrange(grobs = plots_list_bhs, ncol = 6)  
+grid.arrange(grobs = plots_list_bhs, ncol = 6)
 dev.off()
 ```
 
@@ -150,80 +176,273 @@ participant_dataframes <- list()
 plots_list_combined <- list()
 
 participant_ids <- unique(clean_data$id)
-num_rows <- ceiling(length(participant_ids) / 6)  
+num_rows <- ceiling(length(participant_ids) / 6)
 # this is a long labeled way of getting the color key to only appear on one image...
 
 for (i in seq_along(participant_ids)) {
   id_val <- participant_ids[i]
-  
+
   participant_id <- gsub("^(PH-)", "2-", as.character(id_val))
   participant_id <- gsub("^(BX-)", "1-", participant_id)
   participant_id <- gsub("^(TX-)", "3-", participant_id)
   participant_id <- gsub("^(NP-)", "4-", participant_id)
-  
+
   ID_data_subset <- subset(clean_data, id == id_val)
-  
+
   scaled_data <- ID_data_subset %>%
     dplyr::select(month, id, bdi, bhs) %>%
-    dplyr::mutate(across(c(bdi, bhs), scale))  # Scale both variables
-  
+    dplyr::mutate(across(c(bdi, bhs), scale)) # Scale both variables
+
   participant_dataframes[[paste0("participant_", id_val, "_data")]] <- scaled_data
-  
-  show_legend <- (i == 6)  
-  
+
+  show_legend <- (i == 6)
+
   p <- ggplot(scaled_data, aes(x = month)) +
     geom_line(aes(y = bdi, color = "BDI-II"), size = 2.1) +
     geom_point(aes(y = bdi, color = "BDI-II"), size = 3) +
     geom_line(aes(y = bhs, color = "BHS"), size = 2.1) +
     geom_point(aes(y = bhs, color = "BHS"), size = 3) +
-    labs(title = paste("Participant", participant_id),  
-         x = "Wave",
-         y = "Values",
-         color = "Measure") +
-    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +  
-    scale_color_manual(values = c("BDI-II" = "#CC0066", "BHS" = "#009999")) +  
-    theme_minimal() + 
+    labs(
+      title = paste("Participant", participant_id),
+      x = "Wave",
+      y = "Values",
+      color = "Measure"
+    ) +
+    scale_x_discrete(labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4")) +
+    scale_color_manual(values = c("BDI-II" = "#CC0066", "BHS" = "#009999")) +
+    theme_minimal() +
     theme(
-      axis.title.x = element_text(size = 20),   
-      axis.title.y = element_text(size = 20),   
-      axis.text.x = element_text(size = 20),    
-      axis.text.y = element_text(size = 20),    
-      plot.title = element_text(size = 23, face = "bold", hjust = 0.5), 
-      legend.text = element_text(size = 20),    
+      axis.title.x = element_text(size = 20),
+      axis.title.y = element_text(size = 20),
+      axis.text.x = element_text(size = 20),
+      axis.text.y = element_text(size = 20),
+      plot.title = element_text(size = 23, face = "bold", hjust = 0.5),
+      legend.text = element_text(size = 20),
       legend.title = element_text(size = 20),
-      legend.position = ifelse(show_legend, "right", "none")  
+      legend.position = ifelse(show_legend, "right", "none")
     )
-  
+
   plots_list_combined[[paste0("participant_", id_val)]] <- p
 }
 
 pdf("03_Output/BDI_BHS_combined_trajectories.pdf", width = 32, height = 45)
-grid.arrange(grobs = plots_list_combined, ncol = 6)  
+grid.arrange(grobs = plots_list_combined, ncol = 6)
 dev.off()
 ```
 
 # BDI + BHS variance partitions
 ```{r gen variance vis}
-depr_variance <- depr_variance %>% slice(1:(n() - 1)) %>% mutate(Type = "BDI-II")
-hope_variance <- hope_variance %>% slice(1:(n() - 1)) %>% mutate(Type = "BHS")
+depr_variance <- depr_variance %>% mutate(Type = "BDI-II")
+hope_variance <- hope_variance %>% mutate(Type = "BHS")
 combined_variance <- bind_rows(depr_variance, hope_variance)
 
 combined_variance <- combined_variance %>%
   mutate(X = factor(X, levels = rev(unique(X))))
 
 (variances <- ggplot(combined_variance, aes(x = X, y = variance, fill = Type)) +
-    geom_col(position = "dodge", width = 0.6, alpha = 0.8) +
-    coord_flip() +
-    facet_wrap(~ Type) +  
-    scale_fill_manual(values = c("BDI-II" = "#CC0066", "BHS" = "#009999")) +
-    labs(title = "Variance partitions for the BDI-II & BHS",
-        x = "Partition",
-        y = "Variance",
-        fill = "Measure") +
-    theme_minimal() +
-    guides(fill = "none"))  
+  geom_col(position = "dodge", width = 0.6, alpha = 0.8) +
+  coord_flip() +
+  facet_wrap(~Type) +
+  scale_fill_manual(values = c("BDI-II" = "#CC0066", "BHS" = "#009999")) +
+  labs(
+    title = "Variance partitions for the BDI-II & BHS",
+    x = "Partition",
+    y = "Variance",
+    fill = "Measure"
+  ) +
+  theme_minimal() +
+  guides(fill = "none"))
 
 pdf("03_Output/BDI_BHS_variance_partitions.pdf", width = 5, height = 5)
 variances
 dev.off()
 ```
+
+# Presentation plots
+# Example BDI + BHS person-level plots for presentation
+```{r SRS fig 1}
+participant_ids <- c("BX-014", "BX-151", "BX-146", "BX-170", "TX-012", "TX-015")
+
+scaled_data <- clean_data %>%
+  filter(id %in% participant_ids) %>%
+  select(month, id, bdi, bhs) %>%
+  mutate(across(c(bdi, bhs), scale)) %>%
+  pivot_longer(cols = c(bdi, bhs), names_to = "measure", values_to = "value")
+
+scaled_data <- scaled_data %>%
+  mutate(participant_label = case_when(
+    grepl("^PH-", id) ~ sub("^PH-", "2-", id),
+    grepl("^BX-", id) ~ sub("^BX-", "1-", id),
+    grepl("^TX-", id) ~ sub("^TX-", "3-", id),
+    grepl("^NP-", id) ~ sub("^NP-", "4-", id),
+    TRUE ~ id
+  ))
+
+participant_map <- c(
+  "BX-014" = "Participant 1", "BX-151" = "Participant 2",
+  "BX-146" = "Participant 3", "BX-170" = "Participant 4",
+  "TX-012" = "Participant 5", "TX-015" = "Participant 6"
+)
+
+scaled_data <- scaled_data %>%
+  mutate(participant_label = recode(id, !!!participant_map))
+
+p <- ggplot(scaled_data, aes(x = month, y = value, color = measure, group = measure)) +
+  geom_line(size = 2.1) +
+  geom_point(size = 4) +
+  facet_wrap(~participant_label, ncol = 3, scales = "free_x") +
+  scale_x_discrete(
+    labels = c("0" = "1", "3" = "2", "6" = "3", "12" = "4"),
+    breaks = c(0, 3, 6, 12)
+  ) +
+  scale_color_manual(
+    values = c("bdi" = "#CC00FF", "bhs" = "#33CCFF"),
+    labels = c("bdi" = "BDI-II", "bhs" = "BHS"),
+    name = ""
+  ) +
+  labs(x = "Time", y = "Scaled Value") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "transparent", color = NA),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    legend.background = element_rect(fill = "transparent", color = NA),
+    legend.box.background = element_rect(fill = "transparent", color = NA),
+    rect = element_rect(fill = "transparent", color = NA),
+    axis.title.x = element_text(size = 17.5, color = "white"),
+    axis.title.y = element_text(size = 17.5, color = "white"),
+    axis.text.x = element_text(size = 17.5, color = "white"),
+    axis.text.y = element_text(size = 17.5, color = "#999999"),
+    strip.text = element_text(size = 17.5, color = "white"),
+    legend.text = element_text(size = 17.5, color = "white"),
+    legend.title = element_text(size = 17.5, color = "white"),
+    plot.title = element_text(size = 17.5, hjust = 0.5, color = "white"),
+    legend.position = "right",
+    panel.grid.major = element_line(color = "#999999", size = 0.5),
+    panel.grid.minor = element_line(color = "#999999", size = 0.25),
+    axis.line = element_line(color = "#999999"),
+    strip.background = element_rect(fill = "transparent", color = NA)
+  ) +
+  expand_limits(y = c(-1.5, 1.5))
+
+png("03_Output/BDI_BHS_presentation.png",
+  width = 3150, height = 1900, res = 300, bg = "transparent"
+)
+print(p)
+dev.off()
+```
+
+# BDI + BHS variance partitions for presentation
+```{r SRS fig 2}
+depr_variance <- depr_variance %>%
+  slice(1:(n() - 1)) %>%
+  mutate(Type = "BDI-II")
+hope_variance <- hope_variance %>%
+  slice(1:(n() - 1)) %>%
+  mutate(Type = "BHS")
+combined_variance <- bind_rows(depr_variance, hope_variance)
+
+combined_variance <- combined_variance %>%
+  mutate(X = factor(X, levels = rev(unique(X))))
+
+bdi_plot <- ggplot(
+  combined_variance %>% filter(Type == "BDI-II"),
+  aes(x = X, y = Percent, fill = Type)
+) +
+  geom_col(width = 0.6, alpha = 0.8) +
+  geom_text(aes(label = sprintf("%.1f%%", Percent * 100)), hjust = -0.1, size = 4, color = "black") +
+  coord_flip() +
+  scale_fill_manual(values = c("BDI-II" = "#CC00FF")) +
+  expand_limits(y = max(combined_variance$Percent) * 1.4) +
+  labs(
+    title = "BDI-II",
+    x = "",
+    y = "% Variance",
+    fill = "Measure"
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 13.5),
+    axis.title.x = element_text(size = 13.5),
+    axis.title.y = element_text(size = 13.5),
+    axis.text.x = element_text(size = 13.5),
+    axis.text.y = element_text(size = 13.5, color = "black"),
+    plot.title = element_text(size = 13.5, hjust = 0.5),
+    legend.position = "none"
+  )
+
+bhs_plot <- ggplot(
+  combined_variance %>% filter(Type == "BHS"),
+  aes(x = X, y = Percent, fill = Type)
+) +
+  geom_col(width = 0.6, alpha = 0.8) +
+  geom_text(aes(label = sprintf("%.1f%%", Percent * 100)), hjust = -0.1, size = 4, color = "black") +
+  coord_flip() +
+  scale_fill_manual(values = c("BHS" = "#33CCFF")) +
+  expand_limits(y = max(combined_variance$Percent) * 1.4) +
+  labs(
+    title = "BHS",
+    x = "",
+    y = "% Variance"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank(),
+    plot.title = element_text(size = 13.5, hjust = 0.5),
+    text = element_text(size = 13.5),
+    legend.position = "none"
+  )
+
+variances_plot <- bdi_plot + bhs_plot
+variances_plot
+png("03_Output/BDI_BHS_variance_presentation.png",
+  width = 1600, height = 1800, res = 300
+)
+variances_plot
+dev.off()
+```
+
+# Overall change during the study period 
+```{r SRS fig 3 data}
+# View(paletteer::palettes_d_names)
+
+bdi_overall <- ggwithinstats(
+  data = clean_data,
+  x = month,
+  y = bdi,
+  pairwise.display = "none",
+  title = "BDI-II over time",
+  xlab = "Time",
+  ylab = "BDI-II",
+  bf.message = FALSE
+)
+
+bhs_overall <- ggwithinstats(
+  data = clean_data,
+  x = month,
+  y = bhs,
+  pairwise.display = "none",
+  title = "BHS over time",
+  xlab = "Time",
+  ylab = "BHS",
+  bf.message = FALSE
+)
+
+combined_overall <- combine_plots(
+  plotlist = list(bdi_overall, bhs_overall),
+  plotgrid.args = list(nrow = 2),
+  annotation.args = list(
+    title = "",
+    caption = ""
+  )
+)
+
+png("03_Output/BDI_BHS_overall_change.png",
+  width = 1600, height = 2500, res = 300
+)
+combined_overall
+dev.off()
+```
+
+

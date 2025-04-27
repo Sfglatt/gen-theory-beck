@@ -1,0 +1,57 @@
+---
+title: "04_venn"
+author: "Sglatt"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+if (!require("grid")) {
+  install.packages("grid")
+  require("grid")
+}
+if (!require("VennDiagram")) {
+  install.packages("VennDiagram")
+  require("VennDiagram")
+}
+```
+
+```{r venn diagram}
+# pdf("04_Output/Generalizability_venn.pdf", width = 8, height = 8)
+png("04_Output/Generalizability_venn.png", width = 8, height = 8, units = "in", res = 300)
+
+grid.newpage()
+
+venn.plot <- draw.triple.venn(
+  area1 = 4,
+  area2 = 4,
+  area3 = 4,
+  n12 = 2,
+  n23 = 2,
+  n13 = 2,
+  n123 = 1,
+  category = c("Person", "Time", "Item"),
+  fill = c("#66CCFF", "#FF66CC", "#66CC99"),
+  lty = "solid",
+  cex = 0,
+  cat.cex = 1.5,
+  cat.col = c("#3399CC", "#FF3366", "#339966")
+)
+
+grid.text("P", x = 0.25, y = 0.7, gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("T", x = 0.75, y = 0.7, gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("I", x = 0.5, y = 0.3, gp = gpar(fontsize = 16, fontface = "bold"))
+
+grid.text("P×T", x = 0.5, y = 0.8, gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("P×I", x = 0.3, y = 0.45, gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("T×I", x = 0.7, y = 0.45, gp = gpar(fontsize = 16, fontface = "bold"))
+
+grid.text("P×T×I", x = 0.5, y = 0.55, gp = gpar(fontsize = 16, fontface = "bold"))
+
+dev.off()
+```
+

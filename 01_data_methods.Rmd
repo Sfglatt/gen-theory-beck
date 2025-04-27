@@ -10,10 +10,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r Packages}
-if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
-if (!require("moments")) {install.packages("moments"); require("moments")}
-if (!require("psych")) {install.packages("psych"); require("psych")}
-if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("dplyr")) {
+  install.packages("dplyr")
+  require("dplyr")
+}
+if (!require("moments")) {
+  install.packages("moments")
+  require("moments")
+}
+if (!require("psych")) {
+  install.packages("psych")
+  require("psych")
+}
+if (!require("tidyverse")) {
+  install.packages("tidyverse")
+  require("tidyverse")
+}
 ```
 
 # dataset created from PLF repo script "01_RCT_data_clean_merging" in the "01_Created_datasets" folder
@@ -21,135 +33,187 @@ if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
 plf_data <- read.csv("Raw_datasets/Merged_plf_data_2024_12_30.csv")
 ```
 
-# Filter the dataset to non-missing observations. This is so that the design can be fully crossed instead of nested.
+# Filter the dataset to non-missing BDI/BHS observations
 ```{r eval=FALSE}
+# This is so that the design can be fully crossed instead of nested
+
 # Remove month "-9" rows (created for lifetime C-SSRS info)
 plf_data <- plf_data[plf_data$month != -9, ]
 
-# Filter to complete data
-total_time_points <- 4  
+# Filter to complete data:
+total_time_points <- 4
 
-(time_points_summary <- plf_data %>%
+# Summarize at how many obs everyone has
+time_points_summary <- plf_data %>%
   dplyr::group_by(id) %>%
   dplyr::summarize(
     BHS = sum(!is.na(bhs)),
-    BDI = sum(!is.na(bdi))))
+    BDI = sum(!is.na(bdi))
+  )
 
-Coping_data_filtered <- plf_data %>%
-  dplyr::filter(id %in% time_points_summary$id[time_points_summary$BHS > 3 & 
-                                               time_points_summary$BDI > 3])
+# Filter to BHS and BDI-II == 4 observations
+plf_data_complete_filter <- plf_data %>%
+  dplyr::filter(id %in% time_points_summary$id[time_points_summary$BHS > 3 &
+    time_points_summary$BDI > 3])
 
-(unique_id_count <- Coping_data_filtered %>%
-  dplyr::summarize(unique_ids = n_distinct(id))) 
+# Check how many people there are
+unique_id_count <- plf_data_complete_filter %>%
+  dplyr::summarize(total_unique_ids = n_distinct(id))
 
-(time_points_summary <- Coping_data_filtered %>%
+# Check how many people there are in each group
+unique_id_by_arm_rec <- plf_data_complete_filter %>%
+  dplyr::group_by(arm_rec) %>%
+  dplyr::summarize(unique_ids = n_distinct(id))
+
+# Confirm complete data
+time_points_summary <- plf_data_complete_filter %>%
   group_by(id) %>%
   dplyr::summarize(
     BHS = sum(!is.na(bhs)),
-    BDI = sum(!is.na(bdi))))
+    BDI = sum(!is.na(bdi))
+  )
 
-summary(time_points_summary$BHS)    
-summary(time_points_summary$BDI)  
+summary(time_points_summary$BHS)
+summary(time_points_summary$BDI)
+
+# Check for item-level missing data
+plf_data_complete_filter %>%
+  dplyr::select(contains("bdi")) %>%
+  dplyr::summarize(across(everything(), list(
+    mean = ~ mean(., na.rm = TRUE),
+    sd = ~ sd(., na.rm = TRUE),
+    n = ~ sum(!is.na(.))
+  )))
+
+plf_data_complete_filter %>%
+  dplyr::select(contains("bhs")) %>%
+  dplyr::summarize(across(everything(), list(
+    mean = ~ mean(., na.rm = TRUE),
+    sd = ~ sd(., na.rm = TRUE),
+    n = ~ sum(!is.na(.))
+  )))
 
 # Save dataset
-write.csv(Coping_data_filtered, 
-          file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_", format(Sys.Date(), "%Y_%m_%d"), ".csv"), 
-          row.names = TRUE) 
+write.csv(plf_data_complete_filter,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
+  row.names = TRUE
+)
 ```
 
-```{r descriptives}
-# Remove participants missing baseline BHS or BDI from all analysis moving forward
-# missing <- plf_data_full %>%
-#  filter(month == 0 & (is.na(bdi) | is.na(bhs))) %>%
-#  pull(id)
-
-# plf_data <- plf_data_full %>%
-#  filter(!id %in% missing)
-
-# plf_data_full %>% summarise(unique_ids = n_distinct(id))
-# plf_data %>% summarise(unique_ids = n_distinct(id))      
-
-# Missing at random?
-# missingness <- plf_data[, c("bhs", "bdi", "ssi")]
-# mcar_test(missingness)
-
 # Baseline BSSI, BHS, & BDI
-plf_data_baseline <- Coping_data_filtered[Coping_data_filtered$month == 0,]
+```{r descriptives}
+# Make baseline dataset
+plf_data_baseline <- plf_data_complete_filter[plf_data_complete_filter$month == 0, ]
 
-# BDI-II mean, SD, and range 
+# BDI-II mean, SD, and range
 summary(plf_data_baseline$bdi)
 sd(plf_data_baseline$bdi, na.rm = FALSE)
 (sum(plf_data_baseline$bdi > 28, na.rm = FALSE) / sum(!is.na(plf_data_baseline$bdi))) * 100
 
-# BHS mean, SD, and range 
+# BHS mean, SD, and range
 summary(plf_data_baseline$bhs)
 sd(plf_data_baseline$bhs, na.rm = FALSE)
 (sum(plf_data_baseline$bhs > 14, na.rm = FALSE) / sum(!is.na(plf_data_baseline$bhs))) * 100
 (sum(plf_data_baseline$bhs > 8, na.rm = FALSE) / sum(!is.na(plf_data_baseline$bhs))) * 100
 
-# BSSI 
+# BSSI
 summary(plf_data_baseline$ssi)
-sd(plf_data_baseline$ssi, na.rm = T)
+sd(plf_data_baseline$ssi, na.rm = TRUE)
 (sum(plf_data_baseline$ssi > 0, na.rm = TRUE) / sum(!is.na(plf_data_baseline$ssi))) * 100
+```
 
-# BDI and BHS mean, SD, range, skew, and kurtosis split by month
-(descriptives_table <- Coping_data_filtered %>%
-  dplyr::group_by(month) %>%
-  dplyr::summarise(
-    mean_bdi = mean(bdi, na.rm = FALSE),
-    sd_bdi = sd(bdi, na.rm = FALSE),
-    n_bdi = sum(!is.na(bdi)),
-    range_bdi_min = min(bdi, na.rm = FALSE),
-    range_bdi_max = max(bdi, na.rm = FALSE),
-    
-    mean_bhs = mean(bhs, na.rm = FALSE),
-    sd_bhs = sd(bhs, na.rm = FALSE),
-    n_bhs = sum(!is.na(bhs)),
-    range_bhs_min = min(bhs, na.rm = FALSE),
-    range_bhs_max = max(bhs, na.rm = FALSE), 
-    
-    skew_bdi = skewness(bdi, na.rm = FALSE), 
-    skew_bhs = skewness(bhs, na.rm = FALSE), 
-    
-    kurt_bdi = kurtosis(bdi, na.rm = FALSE), 
-    kurt_bhs = kurtosis(bhs, na.rm = FALSE)
-  ) %>%
-  ungroup())
+# BHS and BDI descriptives per timepoint
+```{r Descriptive timepoints}
+# BDI and BHS descriptive statistics split by month
+month_descriptives <- psych::describeBy(plf_data_complete_filter[, c("bhs", "bdi")],
+  plf_data_complete_filter$month,
+  IQR = TRUE
+)
+
+month_0 <- month_descriptives$"0"
+month_3 <- month_descriptives$"3"
+month_6 <- month_descriptives$"6"
+month_12 <- month_descriptives$"12"
+
+all_months <- rbind(month_0, month_3, month_6, month_12)
 
 # Save table
-write.csv(descriptives_table, 
-          file = paste0("01_Output/Results/descriptives_table_", format(Sys.Date(), "%Y_%m_%d"), ".csv"), 
-          row.names = TRUE) 
+write.csv(all_months,
+  file = paste0("01_Output/Results/descriptives_table_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
+  row.names = TRUE
+)
+```
+
+# Demographics
+```{r demographics}
+sex_demo_table <- table(plf_data_complete_filter$sex_demo)
+sex_demo_percent <- (sex_demo_table / 87) * 100
+
+latino_demo_table <- table(plf_data_complete_filter$latino_demo)
+latino_demo_percent <- (latino_demo_table / 87) * 100
+
+race_demo_table <- table(plf_data_complete_filter$race_demo)
+race_demo_percent <- (race_demo_table / 87) * 100
+
+degree_demo_table <- table(plf_data_complete_filter$degree_demo)
+degree_demo_percent <- (degree_demo_table / 87) * 100
+
+employ_demo_table <- table(plf_data_complete_filter$employ_demo)
+employ_demo_percent <- (employ_demo_table / 87) * 100
+
+marry_demo_table <- table(plf_data_complete_filter$marry_demo)
+marry_demo_percent <- (marry_demo_table / 87) * 100
+
+treat_demo_table <- table(plf_data_complete_filter$treat_demo)
+treat_demo_percent <- (treat_demo_table / 87) * 100
+
+prior_demo_table <- table(plf_data_complete_filter$prior_demo)
+prior_demo_percent <- (prior_demo_table / 87) * 100
+
+prison_demo_table <- table(plf_data_complete_filter$prison_demo)
+prison_demo_percent <- (prison_demo_table / 87) * 100
+
+summary(plf_data_complete_filter[plf_data_complete_filter$month == 0, ]$age_demo)
+sd(plf_data_complete_filter[plf_data_complete_filter$month == 0, ]$age_demo, na.rm = TRUE)
 ```
 
 # shift data format for main analysis
 ```{r shift data}
-hope_long <- mlArrange(Coping_data_filtered, 
-                       grp = "id", 
-                       Time = "month", 
-                       items = c("q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
-                                 "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs", 
-                                 "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs", 
-                                 "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"),
-                       extra = NULL)
+# BHS
+hope_long <- mlArrange(plf_data_complete_filter,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
+    "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs",
+    "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs",
+    "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"
+  ),
+  extra = NULL
+)
 
-
-depr_long <- mlArrange(Coping_data_filtered, 
-                       grp = "id", 
-                       Time = "month", 
-                       items = c("q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
-                                 "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
-                                 "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi",  "q15_bdi", 
-                                 "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
-                                 "q21_bdi"),
-                       extra = NULL)
+# BDI-II
+depr_long <- mlArrange(plf_data_complete_filter,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
+    "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
+    "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi", "q15_bdi",
+    "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
+    "q21_bdi"
+  ),
+  extra = NULL
+)
 
 # Save datasets
-write.csv(hope_long, 
-          file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_", format(Sys.Date(), "%Y_%m_%d"), ".csv"), 
-          row.names = TRUE) 
+write.csv(hope_long,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
+  row.names = TRUE
+)
 
-write.csv(depr_long, 
-          file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_", format(Sys.Date(), "%Y_%m_%d"), ".csv"), 
-          row.names = TRUE) 
+write.csv(depr_long,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
+  row.names = TRUE
+)
 ```
