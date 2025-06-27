@@ -1,6 +1,5 @@
 ---
 title: "04_venn"
-author: "Sglatt"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -22,7 +21,8 @@ if (!require("VennDiagram")) {
 
 ```{r venn diagram}
 # pdf("04_Output/Generalizability_venn.pdf", width = 8, height = 8)
-png("04_Output/Generalizability_venn.png", width = 8, height = 8, units = "in", res = 300)
+# png("04_Output/Generalizability_venn.png", width = 8, height = 8, units = "in", res = 300)
+tiff("04_Output/Generalizability_venn.tiff", units = "in", width = 8, height = 8, res = 300, compression = "lzw")
 
 grid.newpage()
 
@@ -42,15 +42,16 @@ venn.plot <- draw.triple.venn(
   cat.col = c("#3399CC", "#FF3366", "#339966")
 )
 
-grid.text("P", x = 0.25, y = 0.7, gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("P (trait)", x = 0.25, y = 0.7, gp = gpar(fontsize = 16, fontface = "bold"))
 grid.text("T", x = 0.75, y = 0.7, gp = gpar(fontsize = 16, fontface = "bold"))
 grid.text("I", x = 0.5, y = 0.3, gp = gpar(fontsize = 16, fontface = "bold"))
 
-grid.text("P×T", x = 0.5, y = 0.8, gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("P×T (state)", x = 0.5, y = 0.8, gp = gpar(fontsize = 16, fontface = "bold"))
 grid.text("P×I", x = 0.3, y = 0.45, gp = gpar(fontsize = 16, fontface = "bold"))
 grid.text("T×I", x = 0.7, y = 0.45, gp = gpar(fontsize = 16, fontface = "bold"))
 
 grid.text("P×T×I", x = 0.5, y = 0.55, gp = gpar(fontsize = 16, fontface = "bold"))
+# trial and error with spacing x/y
 
 dev.off()
 ```
