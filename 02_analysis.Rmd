@@ -13,21 +13,13 @@ if (!require("dplyr")) {
   install.packages("dplyr")
   require("dplyr")
 }
-if (!require("ggstatsplot")) {
-  install.packages("ggstatsplot")
-  require("ggstatsplot")
-}
-if (!require("gridExtra")) {
-  install.packages("gridExtra")
-  require("gridExtra")
-}
-if (!require("jmv")) {
-  install.packages("jmv")
-  require("jmv")
-}
 if (!require("lme4")) {
   install.packages("lme4")
   require("lme4")
+}
+if (!require("nlme")) {
+  install.packages("nlme")
+  require("nlme")
 }
 if (!require("moments")) {
   install.packages("moments")
@@ -49,104 +41,132 @@ if (!require("report")) {
   install.packages("report")
   require("report")
 }
+if (!require("afex")) {
+  install.packages("afex")
+  require("afex")
+}
+if (!require("rstatix")) {
+  install.packages("rstatix")
+  require("rstatix")
+}
 ```
 
 # Import data from script 01
 ```{r Data}
 # All datasets created from script "01_data_methods"
-clean_data <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2025_02_17.csv")
-hope_long <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BHS_long_2025_02_17.csv")
-depr_long <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BDI_long_2025_02_17.csv")
+clean_data_1 <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2025-02-17.csv")
+clean_data_2 <- read.csv("01_Output/Created_datasets/Gen_theory_beck_clean_2waves_2025-10-12.csv")
+
+# For crossed design models
+hope_long_1 <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BHS_long_2025-02-17.csv")
+depr_long_1 <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BDI_long_2025-02-17.csv")
+
+# For nested design models 
+hope_long_2 <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BHS_long_2waves_2025-10-12.csv")
+depr_long_2 <- read.csv("01_Output/Created_datasets/Gen_theory_beck_BDI_long_2waves_2025-10-12.csv")
+
+# Equally spaced intervals (crossed design models)
+hope_long_3int <- read.csv("01_output/Created_datasets/Gen_theory_beck_BHS_long_3int_2025-10-12.csv")
+hope_long_6int <- read.csv("01_output/Created_datasets/Gen_theory_beck_BHS_long_6int_2025-10-12.csv")
+depr_long_3int <- read.csv("01_output/Created_datasets/Gen_theory_beck_BDI_long_3int_2025-10-12.csv")
+depr_long_6int <- read.csv("01_output/Created_datasets/Gen_theory_beck_BDI_long_6int_2025-10-12.csv")
 ```
 
 # Overall change from 0-12 months
-```{r overall change}
-# Shift data to wide format
-plf_wide <- clean_data %>%
-  dplyr::select(id, month, arm_rec, bdi, bhs) %>%
-  pivot_wider(
-    names_from = month,
-    values_from = c(bdi, bhs),
-    names_glue = "{.value}_{month}",
-    values_fill = list(bdi = NA, bhs = NA)
-  )
-
-# t tests between baseline -- 12 month follow-up:
-jmv::ttestPS(
-  data = plf_wide,
-  pairs = list(
-    list(
-      i1 = "bhs_0",
-      i2 = "bhs_12"
-    ),
-    list(
-      i1 = "bdi_0",
-      i2 = "bdi_12"
-    )
+N = 87
+```{r within subject change 87}
+depr_hope_aov <- mlArrange(clean_data_1,
+  grp = "id",
+  Time = "month",
+  items = c("bhs", "bdi"
   ),
-  wilcoxon = TRUE,
-  norm = TRUE,
-  meanDiff = TRUE,
-  ci = TRUE,
-  effectSize = TRUE,
-  ciES = TRUE,
-  desc = TRUE
+  extra = NULL
 )
-```
 
-# Within subjects test for mean diffences by randomization condition
-```{r condition differences}
-# within-subjects condition comparisons
+# Add in tx condition
+clean_arm <- clean_data_2 %>%
+  select(id, arm_rec) %>%
+  distinct(id, .keep_all = TRUE)
 
-# BDI-II
-arm_comparison_BDI <- ggwithinstats(
-  data = clean_data,
-  x = arm_rec,
-  y = bdi,
-  type = "p",
-  effsize.type = "d",
-  conf.level = 0.95,
-  title = "",
-  xlab = "Condition",
-  ylab = "BDI-II",
-  package = "ggsci",
-  palette = "nrc_npg"
-)
+depr_hope_aov <- depr_hope_aov %>%
+  left_join(clean_arm, by = "id")
+
+depr_hope_aov$id <- as.factor(depr_hope_aov$id)
+depr_hope_aov$time <- as.factor(depr_hope_aov$time)
+
+
+# BDI
+bdi_design  <- factorial_design(depr_hope_aov %>% filter(items != "bhs"), 
+                                dv = values, 
+                                wid = id, 
+                                within = time, 
+                                between = arm_rec)
+
+res.anova_bdi <- Anova(bdi_design$model,
+                   idata = bdi_design$idata,
+                   idesign = bdi_design$idesign, 
+                   type = 3)
+
+anova_summary(res.anova_bdi)
+
 
 # BHS
-arm_comparison_BHS <- ggwithinstats(
-  data = clean_data,
-  x = arm_rec,
-  y = bhs,
-  type = "p",
-  effsize.type = "d",
-  conf.level = 0.95,
-  title = "",
-  xlab = "Condition",
-  ylab = "BHS",
-  package = "ggsci",
-  palette = "nrc_npg"
-)
+bhs_design  <- factorial_design(depr_hope_aov %>% filter(items != "bdi"), 
+                                dv = values, 
+                                wid = id, 
+                                within = time, 
+                                between = arm_rec)
 
-# Look at results
-arm_comparison_BDI
-arm_comparison_BHS
+res.anova_bhs <- Anova(bhs_design$model,
+                   idata = bhs_design$idata,
+                   idesign = bhs_design$idesign, 
+                   type = 3)
 
-# Save figures
-pdf(paste0("02_Output/Condition_differences_", format(Sys.Date(), "%Y-%m-%d"), ".pdf"), height = 5, width = 11)
-grid.arrange(arm_comparison_BDI, arm_comparison_BHS,
-  nrow = 1
-)
-dev.off()
+anova_summary(res.anova_bhs)
 
-png(paste0("02_Output/Condition_differences_", format(Sys.Date(), "%Y-%m-%d"), ".png"), height = 500, width = 800)
-grid.arrange(arm_comparison_BDI, arm_comparison_BHS,
-  nrow = 1
-)
-dev.off()
+aov_lmer_model_bdi_group_1 <- lmer(values ~ factor(time) * arm_rec + (1 | id),
+                                   data = depr_hope_aov %>% filter(items == "bdi"))
+summary(aov_lmer_model_bdi_group_1)
+anova(aov_lmer_model_bdi_group_1, type = 3)
+
+aov_lmer_model_bhs_group_1 <- lmer(values ~ factor(time) * arm_rec + (1 | id),
+                                   data = depr_hope_aov %>% filter(items == "bhs"))
+summary(aov_lmer_model_bhs_group_1)
+anova(aov_lmer_model_bhs_group_1, type = 3)
 ```
 
-```{r Variance decomposition and Rc}
+
+```{r within subject change 157}
+# For N = 157, need to use MLMs (missing data)
+depr_hope_aov_2 <- mlArrange(clean_data_2,
+  grp = "id",
+  Time = "month",
+  items = c("bhs", "bdi"
+  ),
+  extra = NULL
+)
+
+depr_hope_aov_2 <- depr_hope_aov_2 %>%
+  left_join(clean_arm, by = "id")
+
+depr_hope_aov_2$id <- as.factor(depr_hope_aov_2$id)
+depr_hope_aov_2$time <- as.factor(depr_hope_aov_2$time)
+
+aov_lmer_model_bdi_group_2 <- lmer(values ~ factor(time) * arm_rec + (1 | id),
+                                   data = depr_hope_aov_2 %>% filter(items == "bdi"))
+summary(aov_lmer_model_bdi_group_2)
+anova(aov_lmer_model_bdi_group_2, type = 3)
+
+aov_lmer_model_bhs_group_2 <- lmer(values ~ factor(time) * arm_rec + (1 | id),
+                                   data = depr_hope_aov_2 %>% filter(items == "bhs"))
+summary(aov_lmer_model_bhs_group_2)
+anova(aov_lmer_model_bhs_group_2, type = 3)
+
+```
+
+Primary models (across all occasions, N = 87)
+```{r primary models}
+# Use lmer
 # Multilevel model for BDI-II
 bdi_lmer <- lmer(
   values ~ 1
@@ -156,7 +176,7 @@ bdi_lmer <- lmer(
     + (1 | id:time) # person by time
     + (1 | id:items) # person by item
     + (1 | items:time), # item by time
-  data = depr_long
+  data = depr_long_1
 )
 
 # [...the 'person by time' variation (state change) is adjusted for all of the other sources of variation (e.g., 'person' - trait variation)]
@@ -187,7 +207,7 @@ bhs_lmer <- lmer(
     + (1 | id:time)
     + (1 | id:items)
     + (1 | items:time),
-  data = hope_long
+  data = hope_long_1
 )
 
 summary(bhs_lmer)
@@ -216,10 +236,198 @@ Rc_bdi
 Rc_bhs
 ```
 
+# Nested models across those with baseline & at least one follow-up
+N = 157
+```{r nested models}
+# Use lme
+# Nested model for BHS
+colnames(hope_long_2)
+bhs_lme <- nlme::lme(values ~ 1,
+                     random = ~ 1 | id/time,
+                     data = hope_long_2,
+                     na.action = na.omit)
+
+s.lme_bhs <- summary(bhs_lme)
+
+# Extract variance
+vc_bhs <- suppressWarnings(matrix(as.numeric(nlme::VarCorr(s.lme_bhs)),
+                              ncol = 2))
+# Partition sources of variance
+vid_bhs <- vc_bhs[2, 1] # Person
+vtime_id_bhs <- vc_bhs[4, 1] # Time nested within person
+vres_bhs <- vc_bhs[5, 1] # Error
+
+# Use BHS variance partitions to calculate Rcn
+Rcn_bhs <-  vtime_id_bhs / (vtime_id_bhs + vres_bhs/20) # Nested reliability
+
+# Nested model for BDI
+bdi_lme <- nlme::lme(values ~ 1,
+                     random = ~ 1 | id/time,
+                     data = depr_long_2,
+                     na.action = na.omit, 
+                     control = nlme::lmeControl(opt = "optim", msMaxIter = 200)
+)
+
+s.lme_bdi <- summary(bdi_lme)
+vc_bdi <- suppressWarnings(matrix(as.numeric(nlme::VarCorr(s.lme_bdi)),
+                              ncol = 2))
+
+vc_bdi
+# Partition sources of variance
+vid_bdi <- vc_bdi[2, 1] # Person
+vtime_id_bdi <- vc_bdi[4, 1] # Time nested within person
+vres_bdi <- vc_bdi[5, 1] # Error
+
+# Use BDI variance partitions to calculate Rcn
+Rcn_bdi <-  vtime_id_bdi / (vtime_id_bdi + vres_bdi/21) # Nested reliability
+
+# Rcn is: 
+Rcn_bhs
+Rcn_bdi
+```
+
+Across 3-month intervals (N = 87)
+```{r 3 mo interval models}
+# Multilevel model for BDI-II
+bdi_3int_lmer <- lmer(
+  values ~ 1
+    + (1 | id) # person
+    + (1 | time) # time
+    + (1 | items) # item
+    + (1 | id:time) # person by time
+    + (1 | id:items) # person by item
+    + (1 | items:time), # item by time
+  data = depr_long_3int
+)
+
+summary(bdi_3int_lmer)
+
+# Extract variance components for BDI-II from the model
+vc_bdi_3int <- lme4::VarCorr(bdi_3int_lmer)
+
+# Partition each source of variation
+MS_bdi_3int_id <- vc_bdi_3int$id[1, 1] # person
+MS_bdi_3int_time <- vc_bdi_3int$time[1, 1] # time
+MS_bdi_3int_items <- vc_bdi_3int$items[1, 1] # item
+MS_bdi_3int_p_x_t <- vc_bdi_3int[["id:time"]][[1]] # person x time
+MS_bdi_3int_p_x_item <- vc_bdi_3int[["id:items"]][[1]] # person by item
+MS_bdi_3int_t_x_item <- vc_bdi_3int[["items:time"]][[1]] # item by time
+error_bdi_3int <- MS_bdi_3int_resid <- (attributes(vc_bdi_3int)$sc)^2 # residual
+
+# Use BDI-II variance partitions to calculate Rc
+Rc_bdi_3int <- (MS_bdi_3int_p_x_t) / (MS_bdi_3int_p_x_t + error_bdi_3int / 21)
+
+# Multilevel model for BHS
+bhs_3int_lmer <- lmer(
+  values ~ 1
+    + (1 | id)
+    + (1 | time)
+    + (1 | items)
+    + (1 | id:time)
+    + (1 | id:items)
+    + (1 | items:time),
+  data = hope_long_3int
+)
+
+summary(bhs_3int_lmer)
+
+# Extract variance components for BHS from the model
+vc_bhs_3int <- lme4::VarCorr(bhs_3int_lmer)
+
+# Partition each source of variation
+MS_bhs_3int_id <- vc_bhs_3int$id[1, 1]
+MS_bhs_3int_time <- vc_bhs_3int$time[1, 1]
+MS_bhs_3int_items <- vc_bhs_3int$items[1, 1]
+MS_bhs_3int_p_x_t <- vc_bhs_3int[["id:time"]][[1]]
+MS_bhs_3int_p_x_item <- vc_bhs_3int[["id:items"]][[1]]
+MS_bhs_3int_t_x_item <- vc_bhs_3int[["items:time"]][[1]]
+error_bhs_3int <- MS_bhs_3int_resid <- (attributes(vc_bhs_3int)$sc)^2
+
+# Use BHS variance partitions to calculate Rc
+Rc_bhs_3int <- (MS_bhs_3int_p_x_t) / (MS_bhs_3int_p_x_t + error_bhs_3int / 20)
+
+# State change is:
+MS_bdi_3int_p_x_t
+MS_bhs_3int_p_x_t
+
+# Reliability of change is:
+Rc_bdi_3int
+Rc_bhs_3int
+```
+
+Across 6-month intervals (N = 87)
+```{r 6 mo interval models}
+# Multilevel model for BDI-II
+bdi_6int_lmer <- lmer(
+  values ~ 1
+    + (1 | id) # person
+    + (1 | time) # time
+    + (1 | items) # item
+    + (1 | id:time) # person by time
+    + (1 | id:items) # person by item
+    + (1 | items:time), # item by time
+  data = depr_long_6int
+)
+
+summary(bdi_6int_lmer)
+
+# Extract variance components for BDI-II from the model
+vc_bdi_6int <- lme4::VarCorr(bdi_6int_lmer)
+
+# Partition each source of variation
+MS_bdi_6int_id <- vc_bdi_6int$id[1, 1] # person
+MS_bdi_6int_time <- vc_bdi_6int$time[1, 1] # time
+MS_bdi_6int_items <- vc_bdi_6int$items[1, 1] # item
+MS_bdi_6int_p_x_t <- vc_bdi_6int[["id:time"]][[1]] # person x time
+MS_bdi_6int_p_x_item <- vc_bdi_6int[["id:items"]][[1]] # person by item
+MS_bdi_6int_t_x_item <- vc_bdi_6int[["items:time"]][[1]] # item by time
+error_bdi_6int <- MS_bdi_6int_resid <- (attributes(vc_bdi_6int)$sc)^2 # residual
+
+# Use BDI-II variance partitions to calculate Rc
+Rc_bdi_6int <- (MS_bdi_6int_p_x_t) / (MS_bdi_6int_p_x_t + error_bdi_6int / 21)
+
+# Multilevel model for BHS
+bhs_6int_lmer <- lmer(
+  values ~ 1
+    + (1 | id)
+    + (1 | time)
+    + (1 | items)
+    + (1 | id:time)
+    + (1 | id:items)
+    + (1 | items:time),
+  data = hope_long_6int
+)
+
+summary(bhs_6int_lmer)
+
+# Extract variance components for BHS from the model
+vc_bhs_6int <- lme4::VarCorr(bhs_6int_lmer)
+
+# Partition each source of variation
+MS_bhs_6int_id <- vc_bhs_6int$id[1, 1]
+MS_bhs_6int_time <- vc_bhs_6int$time[1, 1]
+MS_bhs_6int_items <- vc_bhs_6int$items[1, 1]
+MS_bhs_6int_p_x_t <- vc_bhs_6int[["id:time"]][[1]]
+MS_bhs_6int_p_x_item <- vc_bhs_6int[["id:items"]][[1]]
+MS_bhs_6int_t_x_item <- vc_bhs_6int[["items:time"]][[1]]
+error_bhs_6int <- MS_bhs_6int_resid <- (attributes(vc_bhs_6int)$sc)^2
+
+# Use BHS variance partitions to calculate Rc
+Rc_bhs_6int <- (MS_bhs_6int_p_x_t) / (MS_bhs_6int_p_x_t + error_bhs_6int / 20)
+
+# State change is:
+MS_bdi_6int_p_x_t
+MS_bhs_6int_p_x_t
+
+# Reliability of change is:
+Rc_bdi_6int
+Rc_bhs_6int
+```
+
 ```{r Variance decomposition and Rc 2}
 # There is a function to get the same results as the above in a different (better! more easily saved) format:
 # (& is a good assurance check for the above)
-hope_reliable <- psych::multilevel.reliability(hope_long,
+hope_reliable <- psych::multilevel.reliability(hope_long_1,
   grp = "id",
   Time = "time",
   items = "items",
@@ -236,7 +444,7 @@ hope_reliable <- psych::multilevel.reliability(hope_long,
 hope_reliable
 hope_reliable$s.lmer
 
-depr_reliable <- psych::multilevel.reliability(depr_long,
+depr_reliable <- psych::multilevel.reliability(depr_long_1,
   grp = "id",
   Time = "time",
   items = "items",
@@ -278,6 +486,115 @@ write.csv(combined_variance,
   paste0("02_Output/BDI_and_BHS_variance_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
   row.names = TRUE
 )
+```
+
+3 month models
+```{r}
+hope_3int_reliable <- psych::multilevel.reliability(hope_long_3int,
+  grp = "id",
+  Time = "time",
+  items = "items",
+  alpha = TRUE,
+  icc = TRUE,
+  aov = FALSE,
+  lmer = TRUE,
+  lme = FALSE,
+  long = TRUE,
+  values = "values",
+  na.action = "na.omit",
+  plot = FALSE
+)
+hope_3int_reliable
+hope_3int_reliable$s.lmer
+
+depr_3int_reliable <- psych::multilevel.reliability(depr_long_3int,
+  grp = "id",
+  Time = "time",
+  items = "items",
+  alpha = TRUE,
+  icc = TRUE,
+  aov = FALSE,
+  lmer = TRUE,
+  lme = FALSE,
+  long = TRUE,
+  values = "values",
+  na.action = "na.omit",
+  plot = FALSE
+)
+depr_3int_reliable
+depr_3int_reliable$s.lmer
+```
+
+6 month models
+```{r}
+hope_6int_reliable <- psych::multilevel.reliability(hope_long_6int,
+  grp = "id",
+  Time = "time",
+  items = "items",
+  alpha = TRUE,
+  icc = TRUE,
+  aov = FALSE,
+  lmer = TRUE,
+  lme = FALSE,
+  long = TRUE,
+  values = "values",
+  na.action = "na.omit",
+  plot = FALSE
+)
+hope_6int_reliable
+hope_6int_reliable$s.lmer
+
+depr_6int_reliable <- psych::multilevel.reliability(depr_long_6int,
+  grp = "id",
+  Time = "time",
+  items = "items",
+  alpha = TRUE,
+  icc = TRUE,
+  aov = FALSE,
+  lmer = TRUE,
+  lme = FALSE,
+  long = TRUE,
+  values = "values",
+  na.action = "na.omit",
+  plot = FALSE
+)
+depr_6int_reliable
+depr_6int_reliable$s.lmer
+```
+
+# Repeat with missingness
+Time nested within people
+```{r Variance decomposition and Rc 2}
+hope_reliable_2 <- psych::multilevel.reliability(hope_long_2,
+  grp = "id",
+  Time = "time",
+  items = "items",
+  alpha = TRUE,
+  icc = TRUE,
+  aov = FALSE,
+  lmer = FALSE,
+  lme = TRUE, # for NAs
+  long = TRUE,
+  values = "values",
+  plot = FALSE
+)
+
+hope_reliable_2
+
+depr_reliable_2 <- psych::multilevel.reliability(depr_long_2,
+  grp = "id",
+  Time = "time",
+  items = "items",
+  alpha = TRUE,
+  icc = TRUE,
+  aov = FALSE,
+  lmer = FALSE,
+  lme = TRUE, # for NAs
+  long = TRUE,
+  values = "values",
+  plot = FALSE
+)
+depr_reliable_2
 ```
 
 # Citation write-up

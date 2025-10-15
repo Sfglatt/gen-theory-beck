@@ -25,6 +25,14 @@ if (!require("tidyverse")) {
   install.packages("tidyverse")
   require("tidyverse")
 }
+if (!require("ltm")) {
+  install.packages("ltm")
+  require("ltm")
+}
+if (!require("EFAtools")) {
+  install.packages("EFAtools")
+  require("EFAtools")
+}
 ```
 
 # dataset created from PLF repo script "01_RCT_data_clean_merging" in the "01_Created_datasets" folder
@@ -33,7 +41,7 @@ plf_data <- read.csv("Raw_datasets/Merged_plf_data_2024_12_30.csv")
 ```
 
 # Filter the dataset to non-missing BDI/BHS observations
-```{r eval=FALSE}
+```{r complete data prep}
 # This is so that the design can be fully crossed instead of nested
 
 # Remove month "-9" rows (created for lifetime C-SSRS info)
@@ -49,7 +57,94 @@ time_points_summary <- plf_data %>%
     BHS = sum(!is.na(bhs)),
     BDI = sum(!is.na(bdi))
   )
+```
 
+# Just BHS complete (4 waves; baseline + 1 wave)
+```{r BHS complete}
+# Filter to BHS == 4 observations
+plf_data_bhs_complete_filter_1 <- plf_data %>%
+  dplyr::filter(id %in% time_points_summary$id[time_points_summary$BHS > 3])
+
+# Check how many people there are
+bhs_unique_id_count_1 <- plf_data_bhs_complete_filter_1 %>%
+  dplyr::summarize(total_unique_ids = n_distinct(id))
+
+bhs_unique_id_count_1 # 89
+
+# Filter to BHS >= 2 observations
+plf_data_bhs_complete_filter_2 <- plf_data %>%
+  dplyr::filter(id %in% time_points_summary$id[time_points_summary$BHS > 1])
+
+# Remove people missing baseline (month 0)
+plf_data_bhs_complete_filter_2 <- plf_data_bhs_complete_filter_2 %>%
+  filter(!(month == 0 & is.na(bhs)))
+
+# Check how many people there are
+plf_data_bhs_complete_filter_2 %>%
+  dplyr::summarize(total_unique_ids = n_distinct(id)) # N = 162
+
+# But also make sure everyone *has* a month 0 row
+ids_with_baseline <- plf_data_bhs_complete_filter_2 %>%
+  filter(month == 0 & !is.na(bhs)) %>%
+  pull(id) %>%
+  unique()
+
+# And only keep those 
+plf_data_bhs_complete_filter_2 <- plf_data_bhs_complete_filter_2 %>%
+  filter(id %in% ids_with_baseline)
+
+# Check remaining unique IDs
+plf_data_bhs_complete_filter_2 %>%
+  summarise(total_unique_ids = n_distinct(id)) # N = 158
+```
+
+# Just BDI complete (4 waves; baseline + 1 wave)
+```{r BDI complete}
+# Filter to BDI == 4 observations
+plf_data_bdi_complete_filter_1 <- plf_data %>%
+  dplyr::filter(id %in% time_points_summary$id[time_points_summary$BDI > 3])
+
+# Check how many people there are
+bdi_unique_id_count_1 <- plf_data_bdi_complete_filter_1 %>%
+  dplyr::summarize(total_unique_ids = n_distinct(id))
+
+bdi_unique_id_count_1 # 87
+
+# Filter to BDI +>2 observations
+plf_data_bdi_complete_filter_2 <- plf_data %>%
+  dplyr::filter(id %in% time_points_summary$id[time_points_summary$BDI > 1])
+
+# Remove people missing baseline (month 0)
+plf_data_bdi_complete_filter_2 <- plf_data_bdi_complete_filter_2 %>%
+  filter(!(month == 0 & is.na(bdi)))
+
+# Check how many people there are
+plf_data_bdi_complete_filter_2 %>%
+  dplyr::summarize(total_unique_ids = n_distinct(id)) # N = 162
+
+# But also make sure everyone *has* a month 0 row
+ids_with_baseline <- plf_data_bdi_complete_filter_2 %>%
+  filter(month == 0 & !is.na(bdi)) %>%
+  pull(id) %>%
+  unique()
+
+# And only keep those 
+plf_data_bdi_complete_filter_2 <- plf_data_bdi_complete_filter_2 %>%
+  filter(id %in% ids_with_baseline)
+
+# Check remaining unique IDs
+plf_data_bdi_complete_filter_2 %>%
+  summarise(total_unique_ids = n_distinct(id)) # N = 157
+
+# Is it the same sample in the BDI/BHS 2-wave data?
+setequal(plf_data_bdi_complete_filter_2$id, plf_data_bhs_complete_filter_2$id) # no
+setdiff(plf_data_bdi_complete_filter_2$id, plf_data_bhs_complete_filter_2$id) # 0
+setdiff(plf_data_bhs_complete_filter_2$id, plf_data_bdi_complete_filter_2$id) # 1 
+# For consistency across models, use the smaller sample 
+```
+
+# Complete BDI+BHS
+```{r complete BDI and BHS}
 # Filter to BHS and BDI-II == 4 observations
 plf_data_complete_filter <- plf_data %>%
   dplyr::filter(id %in% time_points_summary$id[time_points_summary$BHS > 3 &
@@ -93,16 +188,209 @@ plf_data_complete_filter %>%
   )))
 ```
 
-```{r save data eval=FALSE}
+For equally spaced models, make two datasets from the primary (N = 87) dataset 
+  1) excluding month 12 (i.e., months 0-3-6)
+  2) excluding month 3 (i.e., months 0-6-12)
+  
+```{r equal space datasets}
+# 3-month interval dataset
+plf_data_036 <- plf_data_complete_filter %>%
+  filter(month %in% c(0, 3, 6)) 
+
+# 6-month interval dataset
+plf_data_0612 <- plf_data_complete_filter %>%
+  filter(month %in% c(0, 6, 12))
+
+# Sanity check
+plf_data_036 %>% count(month)
+plf_data_0612 %>% count(month)
+```
+
+# Save data
+```{r save data}
 # Save dataset
+# Sample with both BDI/BHS complete (4 waves), N = 87
 write.csv(plf_data_complete_filter,
-  file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+# Sample with BHS & BDI at baseline + one or more follow-ups, N = 157
+write.csv(plf_data_bdi_complete_filter_2, 
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_2waves_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+# Sample with both BDI/BHS complete | 3 month intervals, N = 87
+write.csv(plf_data_036, 
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_3mo_interval_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+# Sample with both BDI/BHS complete | 6 month intervals, N = 87
+write.csv(plf_data_0612,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_clean_6mo_interval_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
   row.names = TRUE
 )
 ```
 
+# shift data format for main analysis
+```{r shift data}
+# BHS, N = 87
+hope_long_1 <- mlArrange(plf_data_complete_filter,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
+    "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs",
+    "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs",
+    "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"
+  ),
+  extra = NULL
+)
+
+# BDI-II, N = 87
+depr_long_1 <- mlArrange(plf_data_complete_filter,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
+    "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
+    "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi", "q15_bdi",
+    "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
+    "q21_bdi"
+  ),
+  extra = NULL
+)
+
+# BHS, N = 157
+hope_long_2 <- mlArrange(plf_data_bdi_complete_filter_2,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
+    "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs",
+    "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs",
+    "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"
+  ),
+  extra = NULL
+)
+
+# BDI-II, N = 157
+depr_long_2 <- mlArrange(plf_data_bdi_complete_filter_2,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
+    "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
+    "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi", "q15_bdi",
+    "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
+    "q21_bdi"
+  ),
+  extra = NULL
+)
+
+# BHS, 3 month intervals, N = 87
+hope_long_3int <- mlArrange(plf_data_036,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
+    "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs",
+    "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs",
+    "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"
+  ),
+  extra = NULL
+)
+
+# BHS, 6 month intervals, N = 87
+hope_long_6int <- mlArrange(plf_data_0612,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
+    "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs",
+    "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs",
+    "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"
+  ),
+  extra = NULL
+)
+
+# BDI-II 3 month intervals, N = 87
+depr_long_3int <- mlArrange(plf_data_036,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
+    "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
+    "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi", "q15_bdi",
+    "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
+    "q21_bdi"
+  ),
+  extra = NULL
+)
+
+# BDI-II 6 month intervals, N = 87
+depr_long_6int <- mlArrange(plf_data_0612,
+  grp = "id",
+  Time = "month",
+  items = c(
+    "q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
+    "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
+    "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi", "q15_bdi",
+    "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
+    "q21_bdi"
+  ),
+  extra = NULL
+)
+
+
+# Save datasets
+write.csv(hope_long_1,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(depr_long_1,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(hope_long_2,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_2waves_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(depr_long_2,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_2waves_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(hope_long_3int,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_3int_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(hope_long_6int,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_6int_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(depr_long_3int,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_3int_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+
+write.csv(depr_long_6int,
+  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_6int_", format(Sys.Date(), "%Y-%m-%d"), ".csv"),
+  row.names = TRUE
+)
+```
+
+
 # Baseline BSSI, BHS, & BDI
-```{r descriptives}
+N = 87
+```{r descriptives 87}
 # Make baseline dataset
 plf_data_baseline <- plf_data_complete_filter[plf_data_complete_filter$month == 0, ]
 
@@ -120,10 +408,39 @@ sd(plf_data_baseline$bhs, na.rm = FALSE)
 # BSSI
 summary(plf_data_baseline$ssi)
 sd(plf_data_baseline$ssi, na.rm = TRUE)
+sum(plf_data_baseline$ssi > 0, na.rm = TRUE)
 (sum(plf_data_baseline$ssi > 0, na.rm = TRUE) / sum(!is.na(plf_data_baseline$ssi))) * 100
 ```
 
-# BHS and BDI descriptives per timepoint
+N = 157
+```{r descriptives 157}
+# Make baseline dataset
+plf_data_baseline_157 <- plf_data_bdi_complete_filter_2[plf_data_bdi_complete_filter_2$month == 0, ]
+
+# BDI-II mean, SD, and range
+summary(plf_data_baseline_157$bdi)
+sd(plf_data_baseline_157$bdi, na.rm = FALSE)
+(sum(plf_data_baseline_157$bdi > 28, na.rm = FALSE) / sum(!is.na(plf_data_baseline_157$bdi))) * 100
+
+# BHS mean, SD, and range
+summary(plf_data_baseline_157$bhs)
+sd(plf_data_baseline_157$bhs, na.rm = FALSE)
+(sum(plf_data_baseline_157$bhs > 14, na.rm = FALSE) / sum(!is.na(plf_data_baseline_157$bhs))) * 100
+(sum(plf_data_baseline_157$bhs > 8, na.rm = FALSE) / sum(!is.na(plf_data_baseline_157$bhs))) * 100
+
+# BSSI
+nrow(plf_data_baseline_157)
+summary(plf_data_baseline_157$ssi)
+sum(!is.na(plf_data_baseline_157$ssi))
+
+sd(plf_data_baseline_157$ssi, na.rm = TRUE)
+sum(plf_data_baseline_157$ssi > 2, na.rm = TRUE)
+(sum(plf_data_baseline_157$ssi > 2, na.rm = TRUE) / sum(!is.na(plf_data_baseline_157$ssi))) * 100
+112/160
+```
+
+# BHS and BDI descriptives per timepoint 
+N = 87
 ```{r Descriptive timepoints}
 # BDI and BHS descriptive statistics split by month
 month_descriptives <- psych::describeBy(plf_data_complete_filter[, c("bhs", "bdi")],
@@ -145,8 +462,184 @@ write.csv(all_months,
 )
 ```
 
-# Demographics
-```{r demographics}
+# BDI baseline PCA 
+```{r bdi pca 87}
+plf_data_m0 <- plf_data_complete_filter %>%
+  filter(month == 0)
+
+bdi_items <- plf_data_m0 %>%
+  dplyr::select(ends_with("_bdi")) %>%
+  na.omit()
+
+# KMO & bartlett
+bdi_kmo <- EFAtools::KMO(bdi_items)
+bdi_bartlett <- EFAtools::BARTLETT(bdi_items)
+
+bdi_kmo
+bdi_bartlett
+
+# BDI - standard PCA (ordinal items)
+bdi_pca <- prcomp(bdi_items, 
+                  scale. = TRUE)
+
+summary(bdi_pca)
+
+# Scree plot for BDI-II
+plot(bdi_pca, type = "l", main = "Scree plot for bdi")
+
+# Summary of explained variance
+summary(bdi_pca)
+```
+
+```{r bdi pca 157}
+plf_data_m0_2 <- plf_data_bhs_complete_filter_2 %>%
+  filter(month == 0)
+
+bdi_items <- plf_data_m0_2 %>%
+  dplyr::select(ends_with("_bdi")) %>%
+  na.omit()
+
+# KMO & bartlett
+bdi_kmo <- EFAtools::KMO(bdi_items)
+bdi_bartlett <- EFAtools::BARTLETT(bdi_items)
+
+bdi_kmo
+bdi_bartlett
+
+# BDI - standard PCA (ordinal items)
+bdi_pca <- prcomp(bdi_items, 
+                  scale. = TRUE)
+
+# Summary of explained variance
+summary(bdi_pca)
+```
+
+# BHS baseline PCA 
+```{r bhs pca 87}
+bhs_items_1 <- plf_data_m0 %>%
+  dplyr::select(ends_with("_bhs")) %>%
+  na.omit()
+
+bhs_tetra_1 <- tetrachoric(bhs_items_1)$rho
+
+fa.parallel(bhs_tetra_1,
+            fa = "pc",
+            n.iter = 100,
+            n.obs = nrow(bhs_items_1),
+            main = "Parallel Analysis: BHS")
+
+bhs_pca_1 <- principal(bhs_tetra_1, nfactors = ncol(bhs_items_1), rotate = "none")
+bhs_pca_1
+```
+
+```{r bhs pca 157}
+bhs_items_2 <- plf_data_m0_2 %>%
+  dplyr::select(ends_with("_bhs")) %>%
+  na.omit()
+
+bhs_tetra_2 <- tetrachoric(bhs_items_2)$rho
+
+fa.parallel(bhs_tetra_2,
+            fa = "pc",
+            n.iter = 100,
+            n.obs = nrow(bhs_items_2),
+            main = "Parallel Analysis: BHS")
+
+bhs_pca_2 <- principal(bhs_tetra_2, nfactors = ncol(bhs_items_2), rotate = "none")
+bhs_pca_2
+```
+
+# BHS and BDI reliability alpha per timepoint
+```{r cr timepoints}
+# BDI
+bdi <- plf_data_complete_filter %>%
+  select(month, matches("^q\\d{2}_bdi$"))
+
+bdi_items_timepoint_0 <- bdi %>%
+  filter(month == 0) %>%
+  select(-month)
+
+bdi_items_timepoint_3 <- bdi %>%
+  filter(month == 3) %>%
+  select(-month)
+
+bdi_items_timepoint_6 <- bdi %>%
+  filter(month == 6) %>%
+  select(-month)
+
+bdi_items_timepoint_12 <- bdi %>%
+  filter(month == 12) %>%
+  select(-month)
+
+ltm::cronbach.alpha(bdi_items_timepoint_0, CI = TRUE, na.rm = TRUE)  
+ltm::cronbach.alpha(bdi_items_timepoint_3, CI = TRUE, na.rm = TRUE)  
+ltm::cronbach.alpha(bdi_items_timepoint_6, CI = TRUE, na.rm = TRUE)  
+ltm::cronbach.alpha(bdi_items_timepoint_12, CI = TRUE, na.rm = TRUE) 
+
+# BHS
+bhs <- plf_data_complete_filter %>%
+  select(month, matches("^q\\d{2}_bhs$"))
+
+bhs_items_timepoint_0 <- bhs %>%
+  filter(month == 0) %>%
+  select(-month)
+
+bhs_items_timepoint_3 <- bhs %>%
+  filter(month == 3) %>%
+  select(-month)
+
+bhs_items_timepoint_6 <- bhs %>%
+  filter(month == 6) %>%
+  select(-month)
+
+bhs_items_timepoint_12 <- bhs %>%
+  filter(month == 12) %>%
+  select(-month)
+
+ltm::cronbach.alpha(bhs_items_timepoint_0, CI = TRUE, na.rm = TRUE)  
+ltm::cronbach.alpha(bhs_items_timepoint_3, CI = TRUE, na.rm = TRUE)  
+ltm::cronbach.alpha(bhs_items_timepoint_6, CI = TRUE, na.rm = TRUE)  
+ltm::cronbach.alpha(bhs_items_timepoint_12, CI = TRUE, na.rm = TRUE) 
+```
+
+# BHS endorsement (means/variance), primary sample
+```{r bhs endorsement}
+plf_data_m0 <- plf_data_complete_filter[plf_data_complete_filter$month == 0, ]
+plf_data_m3 <- plf_data_complete_filter[plf_data_complete_filter$month == 3, ]
+plf_data_m6 <- plf_data_complete_filter[plf_data_complete_filter$month == 6, ]
+plf_data_m12 <- plf_data_complete_filter[plf_data_complete_filter$month == 12, ]
+
+bhs_items_m0 <- plf_data_m0 %>% select(ends_with("_bhs"))  
+item_means_m0 <- colMeans(bhs_items_m0, na.rm = TRUE)
+item_vars_m0 <- item_means_m0 * (1 - item_means_m0)
+
+bhs_items_m3 <- plf_data_m3 %>% select(ends_with("_bhs"))  
+item_means_m3 <- colMeans(bhs_items_m3, na.rm = TRUE)
+item_vars_m3 <- item_means_m3 * (1 - item_means_m3)
+
+bhs_items_m6 <- plf_data_m6 %>% select(ends_with("_bhs"))  
+item_means_m6 <- colMeans(bhs_items_m6, na.rm = TRUE)
+item_vars_m6 <- item_means_m6 * (1 - item_means_m6)
+
+bhs_items_m12 <- plf_data_m12 %>% select(ends_with("_bhs"))  
+item_means_m12 <- colMeans(bhs_items_m12, na.rm = TRUE)
+item_vars_m12 <- item_means_m12 * (1 - item_means_m12)
+ 
+summary(item_means_m0)
+summary(item_vars_m0)
+
+summary(item_means_m3)
+summary(item_vars_m3)
+
+summary(item_means_m6)
+summary(item_vars_m6)
+
+summary(item_means_m12)
+summary(item_vars_m12)
+```
+
+# Demographics 87
+```{r demographics 87}
 sex_demo_table <- table(plf_data_complete_filter$sex_demo)
 sex_demo_percent <- (sex_demo_table / 87) * 100
 
@@ -181,8 +674,43 @@ table(plf_data_complete_filter$bpd)
 table(plf_data_complete_filter$msibpd)
 ```
 
+```{r demographics 157}
+sex_demo_table <- table(plf_data_baseline_157$sex_demo)
+sex_demo_percent <- (sex_demo_table / 157) * 100
+
+latino_demo_table <- table(plf_data_baseline_157$latino_demo)
+latino_demo_percent <- (latino_demo_table / 157) * 100
+
+race_demo_table <- table(plf_data_baseline_157$race_demo)
+race_demo_percent <- (race_demo_table / 157) * 100
+
+degree_demo_table <- table(plf_data_baseline_157$degree_demo)
+degree_demo_percent <- (degree_demo_table / 157) * 100
+
+employ_demo_table <- table(plf_data_baseline_157$employ_demo)
+employ_demo_percent <- (employ_demo_table / 157) * 100
+
+marry_demo_table <- table(plf_data_baseline_157$marry_demo)
+marry_demo_percent <- (marry_demo_table / 157) * 100
+
+treat_demo_table <- table(plf_data_baseline_157$treat_demo)
+treat_demo_percent <- (treat_demo_table / 157) * 100
+
+prior_demo_table <- table(plf_data_baseline_157$prior_demo)
+prior_demo_percent <- (prior_demo_table / 157) * 100
+
+prison_demo_table <- table(plf_data_baseline_157$prison_demo)
+prison_demo_percent <- (prison_demo_table / 157) * 100
+
+prison_demo_table
+prison_demo_percent
+
+summary(plf_data_baseline_157[plf_data_baseline_157$month == 0, ]$age_demo)
+sd(plf_data_baseline_157[plf_data_baseline_157$month == 0, ]$age_demo, na.rm = TRUE)
+```
+
 # MINI MDD info
-```{r mini}
+```{r mini 87}
 # mini01 = major depressive episode
 ## when01c = current
 ## when01p = past
@@ -192,8 +720,11 @@ colnames(plf_data_complete_filter)
 
 table(plf_data_complete_filter$mini01_mini) # 0 = 2, 1 = 81 (83 total)
 table(plf_data_complete_filter$when01c_mini) # 0 = 9, 1 = 68 (77 total)
+68/87
 table(plf_data_complete_filter$when01p_mini) # 0 = 26, 1 = 51 (77 total)
+51/87
 table(plf_data_complete_filter$when01r_mini) # 0 = 22, 1 = 55 (77 total)
+55/87
 
 # Does everyone have a past, current, *or* recurrent MDE?
 has_one <- (plf_data_complete_filter$when01c_mini == 1) |
@@ -201,45 +732,31 @@ has_one <- (plf_data_complete_filter$when01c_mini == 1) |
   (plf_data_complete_filter$when01r_mini == 1)
 
 sum(has_one, na.rm = TRUE)
+77/87
 ```
 
-# shift data format for main analysis
-```{r shift data}
-# BHS
-hope_long <- mlArrange(plf_data_complete_filter,
-  grp = "id",
-  Time = "month",
-  items = c(
-    "q01_bhs", "q02_bhs", "q03_bhs", "q04_bhs", "q05_bhs",
-    "q06_bhs", "q07_bhs", "q08_bhs", "q09_bhs", "q10_bhs",
-    "q11_bhs", "q12_bhs", "q13_bhs", "q14_bhs", "q15_bhs",
-    "q16_bhs", "q17_bhs", "q18_bhs", "q19_bhs", "q20_bhs"
-  ),
-  extra = NULL
-)
+MINI 157
+```{r}
+# mini01 = major depressive episode
+## when01c = current
+## when01p = past
+## when01r = recurrent
 
-# BDI-II
-depr_long <- mlArrange(plf_data_complete_filter,
-  grp = "id",
-  Time = "month",
-  items = c(
-    "q01_bdi", "q02_bdi", "q03_bdi", "q04_bdi", "q05_bdi",
-    "q06_bdi", "q07_bdi", "q08_bdi", "q09_bdi", "q10_bdi",
-    "q11_bdi", "q12_bdi", "q13_bdi", "q14_bdi", "q15_bdi",
-    "q16_bdi", "q17_bdi", "q18_bdi", "q19_bdi", "q20_bdi",
-    "q21_bdi"
-  ),
-  extra = NULL
-)
+nrow(plf_data_baseline_157)
+table(plf_data_baseline_157$when01c_mini) # 0 = 18, 1 = 119 (=137)
+119/157
+table(plf_data_baseline_157$when01p_mini) # 0 = 44, 1 = 93 (=137)
+93/157
+table(plf_data_baseline_157$when01r_mini) # 0 = 37, 1 = 100 (=137)
+100/157
 
-# Save datasets
-write.csv(hope_long,
-  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BHS_long_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
-  row.names = TRUE
-)
+# Does everyone have a past, current, *or* recurrent MDE?
+has_one <- (plf_data_baseline_157$when01c_mini == 1) |
+  (plf_data_baseline_157$when01p_mini == 1) |
+  (plf_data_baseline_157$when01r_mini == 1)
 
-write.csv(depr_long,
-  file = paste0("01_Output/Created_datasets/Gen_theory_beck_BDI_long_", format(Sys.Date(), "%Y_%m_%d"), ".csv"),
-  row.names = TRUE
-)
+sum(has_one, na.rm = TRUE)
+137/157
 ```
+
+
